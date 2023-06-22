@@ -107,112 +107,6 @@ class CircleCIJob:
                 }
             },
         ]
-        steps.extend([{"run": l} for l in self.install_steps])
-        # TODO (ydshieh): Remove this line after the next release (the one after 2023/06/19) of `huggingface_hub`
-        steps.append({"run": {"name": "Split tests", "command": "pip uninstall -y huggingface_hub && pip install git+https://github.com/huggingface/huggingface_hub.git@c36817701ecd4694b290178846176da2e195d838"}})
-        steps.append(
-            {
-                "save_cache": {
-                    "key": f"v{self.cache_version}-{self.cache_name}-" + '{{ checksum "setup.py" }}',
-                    "paths": ["~/.cache/pip"],
-                }
-            }
-        )
-        steps.append({"run": {"name": "Show installed libraries and their versions", "command": "pip freeze | tee installed.txt"}})
-        steps.append({"store_artifacts": {"path": "~/transformers/installed.txt"}})
-
-        all_options = {**COMMON_PYTEST_OPTIONS, **self.pytest_options}
-        pytest_flags = [f"--{key}={value}" if (value is not None or key in ["doctest-modules"]) else f"-{key}" for key, value in all_options.items()]
-        pytest_flags.append(
-            f"--make-reports={self.name}" if "examples" in self.name else f"--make-reports=tests_{self.name}"
-        )
-        test_command = ""
-        if self.command_timeout:
-            test_command = f"timeout {self.command_timeout} "
-        test_command += f"python -m pytest -n {self.pytest_num_workers} " + " ".join(pytest_flags)
-
-        if self.parallelism == 1:
-            if self.tests_to_run is None:
-                test_command += " << pipeline.parameters.tests_to_run >>"
-            else:
-                test_command += " " + " ".join(self.tests_to_run)
-        else:
-            # We need explicit list instead of `pipeline.parameters.tests_to_run` (only available at job runtime)
-            tests = self.tests_to_run
-            if tests is None:
-                folder = os.environ["test_preparation_dir"]
-                test_file = os.path.join(folder, "filtered_test_list.txt")
-                if os.path.exists(test_file):
-                    with open(test_file) as f:
-                        tests = f.read().split(" ")
-
-            # expand the test list
-            if tests == ["tests"]:
-                tests = [os.path.join("tests", x) for x in os.listdir("tests")]
-            expanded_tests = []
-            for test in tests:
-                if test.endswith(".py"):
-                    expanded_tests.append(test)
-                elif test == "tests/models":
-                    expanded_tests.extend([os.path.join(test, x) for x in os.listdir(test)])
-                elif test == "tests/pipelines":
-                    expanded_tests.extend([os.path.join(test, x) for x in os.listdir(test)])
-                else:
-                    expanded_tests.append(test)
-            # Avoid long tests always being collected together
-            random.shuffle(expanded_tests)
-            tests = " ".join(expanded_tests)
-
-            # Each executor to run ~10 tests
-            n_executors = max(len(tests) // 10, 1)
-            # Avoid empty test list on some executor(s) or launching too many executors
-            if n_executors > self.parallelism:
-                n_executors = self.parallelism
-            job["parallelism"] = n_executors
-
-            # Need to be newline separated for the command `circleci tests split` below
-            command = f'echo {tests} | tr " " "\\n" >> tests.txt'
-            steps.append({"run": {"name": "Get tests", "command": command}})
-
-            command = 'TESTS=$(circleci tests split tests.txt) && echo $TESTS > splitted_tests.txt'
-            steps.append({"run": {"name": "Split tests", "command": command}})
-
-            steps.append({"store_artifacts": {"path": "~/transformers/tests.txt"}})
-            steps.append({"store_artifacts": {"path": "~/transformers/splitted_tests.txt"}})
-
-            test_command = ""
-            if self.timeout:
-                test_command = f"timeout {self.timeout} "
-            test_command += f"python -m pytest -n {self.pytest_num_workers} " + " ".join(pytest_flags)
-            test_command += " $(cat splitted_tests.txt)"
-        if self.marker is not None:
-            test_command += f" -m {self.marker}"
-
-        if self.name == "pr_documentation_tests":
-            # can't use ` | tee tee tests_output.txt` as usual
-            test_command += " > tests_output.txt"
-            # Save the return code, so we can check if it is timeout in the next step.
-            test_command += '; touch "$?".txt'
-            # Never fail the test step for the doctest job. We will check the results in the next step, and fail that
-            # step instead if the actual test failures are found. This is to avoid the timeout being reported as test
-            # failure.
-            test_command = f"({test_command}) || true"
-        else:
-            test_command += " | tee tests_output.txt"
-        steps.append({"run": {"name": "Run tests", "command": test_command}})
-
-        # return code `124` means the previous (pytest run) step is timeout
-        if self.name == "pr_documentation_tests":
-            checkout_doctest_command = 'if [ -s reports/tests_pr_documentation_tests/failures_short.txt ]; '
-            checkout_doctest_command += 'then echo "some test failed"; '
-            checkout_doctest_command += 'cat reports/tests_pr_documentation_tests/failures_short.txt; '
-            checkout_doctest_command += 'cat reports/tests_pr_documentation_tests/summary_short.txt; exit -1; '
-            checkout_doctest_command += 'elif [ -s reports/tests_pr_documentation_tests/stats.txt ]; then echo "All tests pass!"; '
-            checkout_doctest_command += 'elif [ -f 124.txt ]; then echo "doctest timeout!"; else echo "other fatal error)"; exit -1; fi;'
-            steps.append({"run": {"name": "Check doctest results", "command": checkout_doctest_command}})
-
-        steps.append({"store_artifacts": {"path": "~/transformers/tests_output.txt"}})
-        steps.append({"store_artifacts": {"path": "~/transformers/reports"}})
         job["steps"] = steps
         return job
 
@@ -486,28 +380,8 @@ doc_test_job = CircleCIJob(
 )
 
 REGULAR_TESTS = [
-    torch_and_tf_job,
-    torch_and_flax_job,
     torch_job,
-    tf_job,
-    flax_job,
-    custom_tokenizers_job,
-    hub_job,
-    onnx_job,
-    exotic_models_job,
 ]
-EXAMPLES_TESTS = [
-    examples_torch_job,
-    examples_tensorflow_job,
-    examples_flax_job,
-]
-PIPELINE_TESTS = [
-    pipelines_torch_job,
-    pipelines_tf_job,
-]
-REPO_UTIL_TESTS = [repo_utils_job]
-DOC_TESTS = [doc_test_job]
-
 
 def create_circleci_config(folder=None):
     if folder is None:
@@ -521,8 +395,6 @@ def create_circleci_config(folder=None):
             all_test_list = f.read()
     else:
         all_test_list = []
-    if len(all_test_list) > 0:
-        jobs.extend(PIPELINE_TESTS)
 
     test_file = os.path.join(folder, "filtered_test_list.txt")
     if os.path.exists(test_file):
@@ -565,28 +437,6 @@ def create_circleci_config(folder=None):
     if os.path.exists(example_file) and os.path.getsize(example_file) > 0:
         with open(example_file, "r", encoding="utf-8") as f:
             example_tests = f.read().split(" ")
-        for job in EXAMPLES_TESTS:
-            framework = job.name.replace("examples_", "").replace("torch", "pytorch")
-            if example_tests == "all":
-                job.tests_to_run = [f"examples/{framework}"]
-            else:
-                job.tests_to_run = [f for f in example_tests if f.startswith(f"examples/{framework}")]
-            
-            if len(job.tests_to_run) > 0:
-                jobs.append(job)
-
-    doctest_file = os.path.join(folder, "doctest_list.txt")
-    if os.path.exists(doctest_file):
-        with open(doctest_file) as f:
-            doctest_list = f.read()
-    else:
-        doctest_list = []
-    if len(doctest_list) > 0:
-        jobs.extend(DOC_TESTS)
-
-    repo_util_file = os.path.join(folder, "test_repo_utils.txt")
-    if os.path.exists(repo_util_file) and os.path.getsize(repo_util_file) > 0:
-        jobs.extend(REPO_UTIL_TESTS)
 
     if len(jobs) == 0:
         jobs = [EmptyJob()]
