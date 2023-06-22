@@ -751,8 +751,14 @@ class TFGenerationMixin:
                     self.generation_config = new_generation_config
             generation_config = self.generation_config
 
+        print(kwargs)
+
         generation_config = copy.deepcopy(generation_config)
+        print(generation_config)
+
         model_kwargs = generation_config.update(**kwargs)  # All unused kwargs must be model kwargs
+        print(model_kwargs)
+
         generation_config.validate()
         self._validate_model_kwargs(model_kwargs.copy())
 
