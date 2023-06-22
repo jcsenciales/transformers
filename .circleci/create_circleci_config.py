@@ -106,7 +106,40 @@ class CircleCIJob:
                     ]
                 }
             },
+            {
+                "restore_cache": {
+                    "keys": [
+                        f"v{self.cache_version}-{self.cache_name}-" + '{{ checksum "setup.py" }}',
+                        f"v{self.cache_version}-{self.cache_name}-",
+                    ]
+                }
+            },
+            {
+                "restore_cache_2": {
+                    "keys": [
+                        f"v{self.cache_version}-{self.cache_name}-" + '{{ checksum "setup.py" }}-site-packages',
+                        f"v{self.cache_version}-{self.cache_name}-site-packages",
+                    ]
+                }
+            },
         ]
+        steps.extend([{"run": l} for l in self.install_steps])
+        steps.append(
+            {
+                "save_cache": {
+                    "key": f"v{self.cache_version}-{self.cache_name}-" + '{{ checksum "setup.py" }}',
+                    "paths": ["~/.cache/pip"],
+                }
+            }
+        )
+        steps.append(
+            {
+                "save_cache_2": {
+                    "key": f"v{self.cache_version}-{self.cache_name}-" + '{{ checksum "setup.py" }}-site-packages',
+                    "paths": ["~/.pyenv/versions/"],
+                }
+            }
+        )
         job["steps"] = steps
         return job
 
