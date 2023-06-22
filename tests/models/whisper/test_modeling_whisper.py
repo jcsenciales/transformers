@@ -1250,7 +1250,7 @@ class WhisperModelIntegrationTests(unittest.TestCase):
         )
 
         generated_ids = model.generate(
-            input_features, do_sample=False, max_length=20, language="<|en|>", task="transcribe"
+            input_features, do_sample=False, max_length=20, generation_kwargs={"language": "<|en|>", "task": "transcribe"}
         )
         transcript = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
 
