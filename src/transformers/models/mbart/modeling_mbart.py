@@ -1150,7 +1150,6 @@ class MBartDecoder(MBartPreTrainedModel):
     MBART_START_DOCSTRING,
 )
 class MBartModel(MBartPreTrainedModel):
-    _keys_to_ignore_on_load_missing = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"]
     _tied_weights_keys = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"]
 
     def __init__(self, config: MBartConfig):
@@ -1271,14 +1270,7 @@ class MBartModel(MBartPreTrainedModel):
 )
 class MBartForConditionalGeneration(MBartPreTrainedModel):
     base_model_prefix = "model"
-    _keys_to_ignore_on_load_missing = [
-        r"final_logits_bias",
-        r"encoder.version",
-        r"decoder.version",
-        r"lm_head.weight",
-        "encoder.embed_tokens.weight",
-        "decoder.embed_tokens.weight",
-    ]
+    _keys_to_ignore_on_load_missing = ["final_logits_bias"]
     _tied_weights_keys = ["model.encoder.embed_tokens.weight", "model.decoder.embed_tokens.weight", "lm_head.weight"]
 
     def __init__(self, config: MBartConfig):
@@ -1446,7 +1438,6 @@ class MBartForConditionalGeneration(MBartPreTrainedModel):
     MBART_START_DOCSTRING,
 )
 class MBartForSequenceClassification(MBartPreTrainedModel):
-    _keys_to_ignore_on_load_missing = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"]
     _tied_weights_keys = ["model.encoder.embed_tokens.weight", "model.decoder.embed_tokens.weight"]
 
     def __init__(self, config: MBartConfig, **kwargs):
@@ -1576,7 +1567,6 @@ class MBartForSequenceClassification(MBartPreTrainedModel):
     MBART_START_DOCSTRING,
 )
 class MBartForQuestionAnswering(MBartPreTrainedModel):
-    _keys_to_ignore_on_load_missing = ["encoder.embed_tokens.weight", "decoder.embed_tokens.weight"]
     _tied_weights_keys = ["model.encoder.embed_tokens.weight", "model.decoder.embed_tokens.weight"]
 
     def __init__(self, config):
@@ -1710,7 +1700,6 @@ class MBartDecoderWrapper(MBartPreTrainedModel):
 
 # Copied from transformers.models.bart.modeling_bart.BartForCausalLM with Bart->MBart, facebook/bart-base->facebook/mbart-large-cc25
 class MBartForCausalLM(MBartPreTrainedModel):
-    _keys_to_ignore_on_load_missing = ["lm_head.weight"]
     _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
